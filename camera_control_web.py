@@ -83,6 +83,9 @@ kamera = Kamera()
 html_code = """
 <!DOCTYPE html>
 <html>
+<head>
+    <title>RPI4 PTZ Kamera</title>
+</head>
 <body style="text-align:center">
 <h1>RPI4 PTZ-Kamera</h1>
 
