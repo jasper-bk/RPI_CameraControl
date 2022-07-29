@@ -5,7 +5,22 @@ import os, sys, tty, termios, time
 import pigpio #sudo pigpio 
 from flask import Flask, Response, stream_with_context
 import requests
+
+import cv2 #for opencv camera
+
 app = Flask(__name__)
+
+
+cam = cv2.VideoCapture(0)
+cam.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+
+def gather_img():
+    while True:
+        time.sleep(0.1)
+        _, img = cam.read()
+        _, frame = cv2.imencode('.jpg', img)
+        yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + frame.tobytes() + b'\r\n')
 
 class Kamera:
 
@@ -79,7 +94,6 @@ class Kamera:
 
 kamera = Kamera()
 
-
 html_code = """
 <!DOCTYPE html>
 <html>
@@ -87,7 +101,7 @@ html_code = """
     <title>RPI4 PTZ Kamera</title>
 </head>
 <body style="text-align:center">
-<h1>RPI4 PTZ-Kamera</h1>
+<h1>RPI-Webcam</h1>
 
 <img src="/kamera" id="kamera">
 
@@ -99,7 +113,14 @@ function httpGet(theUrl)
     xmlHttp.send( null );
     return xmlHttp.responseText;
 }
-//document.getElementById('restreamer-player').src= "http://" + window.location.hostname + ":8081/player.html";
+
+function changeImage()
+{
+    document.getElementById('kamera').style.width = document.getElementById('image_size').value;
+    document.getElementById('kamera').style.transform = "rotate("+ document.getElementById('image_rotation').value +"deg)";
+}
+
+document.addEventListener("change", changeImage);
 
 document.onkeydown = checkKey;
 
@@ -128,11 +149,26 @@ function checkKey(e) {
     <tr><td><button type="button" onclick="httpGet('/links')">Nach Links!</button></td><td></td><td><button type="button" onclick="httpGet('/rechts')">Nach Rechts!</button></td></tr>
     <tr><td></td><td><button type="button" onclick="httpGet('/unten')">Nach Unten!</button></td><td></td></tr>
 </table>
-<button type="button" onclick="document.getElementById('kamera').style.width = '300px'">300px</button><br/>
-<button type="button" onclick="document.getElementById('kamera').style.width = '400px'">400px</button><br/>
-<button type="button" onclick="document.getElementById('kamera').style.width = '600px'">600px</button><br/>
-<button type="button" onclick="document.getElementById('kamera').style.width = '800px'">800px</button><br/>
-<button type="button" onclick="document.getElementById('kamera').style.width = '1000px'">1000px</button>
+
+<br/>
+
+<p>Image size</p>
+<select name="image_size" id="image_size">
+<option value="300px" >300px</option>
+<option value="400px" >400px</option>
+<option value="600px" >600px</option>
+<option value="800px" >800px</option>
+<option value="1000px" >1000px</option>
+<option value="1200px" >1200px</option>
+</select>
+
+<p>Image rotation</p>
+<select name="image_rotation" id="image_rotation">
+<option value="0" >0°</option>
+<option value="90" >90°</option>
+<option value="180" >180°</option>
+<option value="270" >270°</option>
+</select>
 
 </body>
 </html>
@@ -146,8 +182,7 @@ def index():
 #Proxy zum Kamera-Stream
 @app.route("/kamera")
 def kamera_stream():
-    req = requests.get('http://localhost:8081', stream = True)
-    return Response(stream_with_context(req.iter_content(chunk_size=10*1024)) , mimetype=req.headers['Content-Type'], content_type=req.headers['Content-Type'], direct_passthrough=True )
+    return Response(gather_img(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route("/links")
 def seite_links():
@@ -171,7 +206,6 @@ def seite_unten():
 
 def main():
     app.run(host= '0.0.0.0', port="5000")
-
 
 if __name__ == '__main__':
     main()
